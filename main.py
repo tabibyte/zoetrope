@@ -1,14 +1,12 @@
-# main.py
+import os
 from kivy.app import App
+from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.image import AsyncImage
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.image import AsyncImage, Image
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.button import Button
-from kivy.uix.behaviors import ButtonBehavior
-from kivy.uix.scatter import Scatter
-import os
+from kivy.uix.floatlayout import FloatLayout
 
 class GalleryScreen(Screen):
     def __init__(self, **kwargs):
@@ -18,16 +16,17 @@ class GalleryScreen(Screen):
         scroll_view = ScrollView()
         self.gallery_layout = GridLayout(cols=3, spacing=10, size_hint_y=None)
         self.gallery_layout.bind(minimum_height=self.gallery_layout.setter('height'))
-        
+
         self.images_folder = "images/"
         self.image_paths = [os.path.join(self.images_folder, img_file)
                             for img_file in os.listdir(self.images_folder)
                             if img_file.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
         
-        # Load images and create thumbnails with click events
-        for idx, img_path in enumerate(self.image_paths):
-            thumbnail = AsyncImage(source=img_path, size_hint_y=None, height=200)
-            thumbnail.bind(on_touch_down=lambda instance, touch, idx=idx: self.show_fullscreen(touch, idx))
+        # Load images as thumbnails
+        for img_path in self.image_paths:
+            thumbnail = AsyncImage(size_hint_y=None, height=200)
+            thumbnail.source = img_path  # Set the source for the image
+            thumbnail.bind(on_touch_down=lambda instance, touch, index=self.image_paths.index(img_path): self.show_fullscreen(touch, index))
             self.gallery_layout.add_widget(thumbnail)
 
         scroll_view.add_widget(self.gallery_layout)
@@ -40,62 +39,34 @@ class GalleryScreen(Screen):
             fullscreen_screen.show_image(self.image_paths, index)
             self.manager.current = 'fullscreen'
 
-class FullScreenImageScreen(Screen):
+class FullscreenScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        layout = FloatLayout()  # Use FloatLayout for flexible positioning
         
-        self.layout = BoxLayout(orientation='vertical')
-        self.back_button = Button(text="Back", size_hint_y=None, height=50)
-        self.back_button.bind(on_release=self.go_back)
-        self.layout.add_widget(self.back_button)
-        
-        # Scatter widget for zooming and panning
-        self.scatter = Scatter(do_rotation=False, do_translation=True, do_scale=True)
-        self.full_image = Image()
-        self.scatter.add_widget(self.full_image)
-        
-        # Add the scatter widget to layout
-        self.layout.add_widget(self.scatter)
-        self.add_widget(self.layout)
-        
-        self.image_paths = []
-        self.current_index = 0
+        self.image_display = AsyncImage(size_hint=(1, 1))
+        layout.add_widget(self.image_display)
+
+        # Create a smaller back button
+        back_button = Button(text="Back", size_hint=(None, None), size=(100, 40), pos_hint={'x': 0, 'top': 1})
+        back_button.bind(on_release=self.go_back)
+        layout.add_widget(back_button)
+
+        self.add_widget(layout)
 
     def show_image(self, image_paths, index):
-        self.image_paths = image_paths
-        self.current_index = index
-        self.full_image.source = self.image_paths[self.current_index]
-        
-        # Reset scale and center the scatter to center the image
-        self.scatter.scale = 1
-        self.scatter.center = self.center  # Center the scatter widget on screen
+        self.image_display.source = image_paths[index]
+        self.image_display.reload()
 
     def go_back(self, instance):
-        self.manager.current = 'gallery'
-
-    def on_touch_move(self, touch):
-        # Detect swipe and handle accordingly
-        if touch.dx > 50:
-            self.show_previous_image()
-        elif touch.dx < -50:
-            self.show_next_image()
-
-    def show_next_image(self):
-        if self.current_index < len(self.image_paths) - 1:
-            self.current_index += 1
-            self.show_image(self.image_paths, self.current_index)
-
-    def show_previous_image(self):
-        if self.current_index > 0:
-            self.current_index -= 1
-            self.show_image(self.image_paths, self.current_index)
+        self.manager.current = 'gallery'  # Switch back to the gallery screen
 
 class GalleryApp(App):
     def build(self):
         sm = ScreenManager()
         sm.add_widget(GalleryScreen(name='gallery'))
-        sm.add_widget(FullScreenImageScreen(name='fullscreen'))
+        sm.add_widget(FullscreenScreen(name='fullscreen'))
         return sm
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     GalleryApp().run()
